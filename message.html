@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息管理系统</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 15px; padding-bottom: 80px; background-color: #f4f4f9; margin: 0; }
+        .tab-content { display: none; }
+        .active { display: block; }
+        
+        /* 底部导航栏 */
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: #fff; display: flex; border-top: 1px solid #ddd;
+            height: 60px; box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+            z-index: 100;
+        }
+        .nav-btn { flex: 1; border: none; background: none; font-size: 16px; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .nav-btn.active { color: #007bff; font-weight: bold; }
+
+        /* 消息列表 */
+        .msg-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ddd; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid; }
+        .tag-phone { color: #007bff; border-color: #007bff; }
+        .tag-vba { color: #fd7e14; border-color: #fd7e14; }
+        
+        /* 表单样式 */
+        .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        input, textarea, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:active { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+<!-- 发送界面 -->
+<div id="tab-send" class="tab-content active">
+    <h3>发送消息</h3>
+    <div class="card">
+        <input type="text" id="consignee" placeholder="收件人">
+        <textarea id="msg" rows="3" placeholder="输入消息内容"></textarea>
+        <button onclick="sendMessage()">立即发送</button>
+    </div>
+</div>
+
+<!-- 接收界面 -->
+<div id="tab-recv" class="tab-content">
+    <h3>历史记录</h3>
+    <div id="messageList">点击底部“记录”刷新数据...</div>
+</div>
+
+<!-- 底部导航栏 -->
+<div class="bottom-nav">
+    <button class="nav-btn active" id="btn-send" onclick="switchTab('tab-send', 'btn-send')">发送</button>
+    <button class="nav-btn" id="btn-recv" onclick="switchTab('tab-recv', 'btn-recv')">记录</button>
+</div>
+
+<script>
+    // --- 配置区域 (请填入你的信息) ---
+    const url = "https://mlbmqulqxdjjkvvxeegu.supabase.co/rest/v1/all_mess";
+    const anonKey = "sb_publishable_CMZpG9TVXwiUVl_hBN1YfQ_QTjatNP1";
+    // -------------------------------
+
+    function switchTab(tabId, btnId) {
+        // 切换内容显示
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        // 切换按钮高亮
+        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(btnId).classList.add('active');
+        
+        // 如果切换到记录页，自动加载
+        if (tabId === 'tab-recv') fetchMessages();
+    }
+
+    async function fetchMessages() {
+        const listDiv = document.getElementById('messageList');
+        listDiv.innerHTML = "正在加载...";
+        
+        try {
+            const response = await fetch(url + "?order=send_time.desc&limit=20", {
+                headers: { 
+                    'apikey': anonKey, 
+                    'Authorization': 'Bearer ' + anonKey,
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation'
+                }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.length === 0) {
+                listDiv.innerHTML = "暂无数据";
+                return;
+            }
+
+            listDiv.innerHTML = data.map(item => {
+                // 区分逻辑：send_lx 为 1 是手机，其他是 VBA
+                const isPhone = item.send_lx == 1;
+                return `
+                    <div class="msg-item" style="border-left-color:${isPhone ? '#007bff' : '#fd7e14'}">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <strong>${item.consignee || '无收件人'}</strong>
+                            <span class="tag ${isPhone ? 'tag-phone' : 'tag-vba'}">
+                                ${isPhone ? '发送消息' : '接收消息'}
+                            </span>
+                        </div>
+                        <div style="font-size:14px; color:#333;">${item.Text_mess || ''}</div>
+                        <div style="font-size:11px; color:#999; margin-top:8px;">
+                            ${item.send_time ? item.send_time.replace('T', ' ').substring(0, 16) : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            listDiv.innerHTML = `<div style="color:red;">加载失败: ${e.message}</div>`;
+            console.error("Fetch Error:", e);
+        }
+    }
+
+async function sendMessage() {
+    const consignee = document.getElementById('consignee').value;
+    const text = document.getElementById('msg').value;
+    
+    if(!consignee || !text) {
+        alert("请填写收件人和内容");
+        return;
+    }
+
+    // --- 核心修改：获取北京时间 (UTC+8) ---
+    const now = new Date();
+    // 加上 8 小时的毫秒数 (8 * 60 * 60 * 1000 = 28800000)
+    const beijingTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+    // 转换为 ISO 格式字符串 (YYYY-MM-DDTHH:mm:ss.sssZ)
+    const timeString = beijingTime.toISOString(); 
+    // --------------------------------------
+
+    const data = {
+        consignee: consignee,
+        Text_mess: text,
+        send_lx: 1,
+        send_time: timeString // 发送加了8小时的时间
+    };
+
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 
+                'apikey': anonKey, 
+                'Authorization': 'Bearer ' + anonKey, 
+                'Content-Type': 'application/json', 
+                'Prefer': 'return=representation' 
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            alert("发送成功！");
+            document.getElementById('msg').value = '';
+            document.getElementById('consignee').value = ''; // 清空收件人
+            switchTab('tab-recv', 'btn-recv'); // 自动跳转到记录页
+        } else {
+            const err = await res.json();
+            alert("发送失败: " + JSON.stringify(err));
+        }
+    } catch (e) {
+        alert("网络错误: " + e.message);
+    }
+}
+
+</script>
+</body>
+</html>
