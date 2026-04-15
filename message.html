@@ -137,110 +137,114 @@
         }
     }
 
-    // 加载消息（已修改：全部消息混合按时间倒序排列）
-    async function fetchMessages() {
-        const listDiv = document.getElementById('messageList');
-        listDiv.innerHTML = "正在加载消息...";
+ // 加载消息（已修改：全部消息混合按时间倒序排列）
+async function fetchMessages() {
+    const listDiv = document.getElementById('messageList');
+    listDiv.innerHTML = "正在加载消息...";
+    
+    try {
+        const response = await fetch(API_URL + "?order=send_time.desc&limit=100", {
+            headers: { 
+                'apikey': SUPABASE_ANON_KEY, 
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json',
+            }
+        });
         
-        try {
-            const response = await fetch(API_URL + "?order=send_time.desc&limit=100", {
-                headers: { 
-                    'apikey': SUPABASE_ANON_KEY, 
-                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                    'Content-Type': 'application/json',
-                }
-            });
+        const data = await response.json();
+        if (!data || data.length === 0) { 
+            listDiv.innerHTML = "暂无消息记录"; 
+            return; 
+        }
+
+        // 统一按时间倒序（发送+接收混合）
+        const sortedMessages = data.sort((a, b) => {
+            return new Date(b.send_time) - new Date(a.send_time);
+        });
+
+        listDiv.innerHTML = sortedMessages.map(item => {
+            const isSend = item.send_lx == 1;
+            const hasPic = item.pic_url && item.pic_url.trim() !== "";
             
-            const data = await response.json();
-            if (!data || data.length === 0) { 
-                listDiv.innerHTML = "暂无消息记录"; 
-                return; 
-            }
-
-            // ✅ 关键修改：所有消息统一按 send_time 倒序排列（发送/接收混合排序）
-            const sortedMessages = data.sort((a, b) => {
-                return new Date(b.send_time) - new Date(a.send_time);
-            });
-
-            listDiv.innerHTML = sortedMessages.map(item => {
-                const isSend = item.send_lx == 1;
-                const hasPic = item.pic_url && item.pic_url.trim() !== "";
-                const timeStr = item.send_time 
-                    ? new Date(item.send_time).toLocaleString('zh-CN')
-                    : '';
-                
-                return `
-                    <div class="msg-item" style="border-left-color:${isSend ? '#007bff' : '#fd7e14'}">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                            <strong>${item.consignee || '无收件人'}</strong>
-                            <span class="tag ${isSend ? 'tag-phone' : 'tag-vba'}">
-                                ${isSend ? '发送消息' : '接收消息'}
-                            </span>
-                        </div>
-                        <div style="font-size:14px; color:#333; margin:6px 0;">${item.Text_mess || ''}</div>
-                        ${hasPic ? `<img src="${item.pic_url}" class="msg-image">` : ''}
-                        <div style="font-size:11px; color:#999; margin-top:8px;">
-                            ${timeStr}
-                        </div>
+            // 直接显示原始时间，不再让浏览器自动加时区
+            const timeStr = item.send_time
+                ? item.send_time.replace("T", " ").substring(0, 19)
+                : "";
+            
+            return `
+                <div class="msg-item" style="border-left-color:${isSend ? '#007bff' : '#fd7e14'}">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <strong>${item.consignee || '无收件人'}</strong>
+                        <span class="tag ${isSend ? 'tag-phone' : 'tag-vba'}">
+                            ${isSend ? '发送消息' : '接收消息'}
+                        </span>
                     </div>
-                `;
-            }).join('');
-        } catch (e) {
-            listDiv.innerHTML = `<div style="color:red; padding:10px;">加载失败: ${e.message}</div>`;
-        }
+                    <div style="font-size:14px; color:#333; margin:6px 0;">${item.Text_mess || ''}</div>
+                    ${hasPic ? `<img src="${item.pic_url}" class="msg-image">` : ''}
+                    <div style="font-size:11px; color:#999; margin-top:8px;">
+                        ${timeStr}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        listDiv.innerHTML = `<div style="color:red; padding:10px;">加载失败: ${e.message}</div>`;
     }
+}
 
-    // 发送消息
-    async function sendMessage() {
-        const consignee = document.getElementById('consignee').value.trim();
-        const text = document.getElementById('msg').value.trim();
-        const hasFile = imagePicker.files.length > 0;
+// 发送消息
+async function sendMessage() {
+    const consignee = document.getElementById('consignee').value.trim();
+    const text = document.getElementById('msg').value.trim();
+    const hasFile = imagePicker.files.length > 0;
 
-        if (!consignee) { alert("请填写收件人"); return; }
-        if (!text && !hasFile) { alert("请输入消息内容或选择图片"); return; }
+    if (!consignee) { alert("请填写收件人"); return; }
+    if (!text && !hasFile) { alert("请输入消息内容或选择图片"); return; }
 
-        try {
-            let picUrl = null;
-            if (hasFile) {
-                picUrl = await uploadImage();
-            }
-
-            const beijingTime = new Date().toISOString();
-
-            const postData = {
-                consignee: consignee,
-                Text_mess: text,
-                send_lx: 1,
-                Sender: 'U222165',
-                send_time: beijingTime,
-                pic_url: picUrl
-            };
-
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 
-                    'apikey': SUPABASE_ANON_KEY, 
-                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(postData)
-            });
-
-            if (res.ok) {
-                alert("发送成功！");
-                document.getElementById('consignee').value = '';
-                document.getElementById('msg').value = '';
-                imagePicker.value = '';
-                imgPreview.style.display = 'none';
-                switchTab('tab-recv', 'btn-recv');
-            } else {
-                const err = await res.text();
-                alert("发送失败：" + err);
-            }
-        } catch (e) {
-            alert("发送错误：" + e.message);
+    try {
+        let picUrl = null;
+        if (hasFile) {
+            picUrl = await uploadImage();
         }
+
+        // 关键：直接生成北京时间字符串存入，不再用 toISOString()
+        const now = new Date();
+        const beijingTime = new Date(now.getTime() + 8 * 3600 * 1000).toISOString();
+
+        const postData = {
+            consignee: consignee,
+            Text_mess: text,
+            send_lx: 1,
+            Sender: 'U222165',
+            send_time: beijingTime,
+            pic_url: picUrl
+        };
+
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 
+                'apikey': SUPABASE_ANON_KEY, 
+                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(postData)
+        });
+
+        if (res.ok) {
+            alert("发送成功！");
+            document.getElementById('consignee').value = '';
+            document.getElementById('msg').value = '';
+            imagePicker.value = '';
+            imgPreview.style.display = 'none';
+            switchTab('tab-recv', 'btn-recv');
+        } else {
+            const err = await res.text();
+            alert("发送失败：" + err);
+        }
+    } catch (e) {
+        alert("发送错误：" + e.message);
     }
+}
 </script>
 </body>
 </html>
