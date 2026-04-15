@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,6 @@
         .tab-content { display: none; }
         .active { display: block; }
         
-        /* 底部导航栏 */
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: #fff; display: flex; border-top: 1px solid #ddd;
@@ -19,19 +18,16 @@
         .nav-btn { flex: 1; border: none; background: none; font-size: 16px; color: #555; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .nav-btn.active { color: #007bff; font-weight: bold; }
 
-        /* 消息列表 */
         .msg-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 5px solid #ddd; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid; }
         .tag-phone { color: #007bff; border-color: #007bff; }
         .tag-vba { color: #fd7e14; border-color: #fd7e14; }
         
-        /* 表单样式 */
         .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         input, textarea, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
         button { background: #007bff; color: white; border: none; font-size: 16px; font-weight: bold; cursor: pointer; }
         button:active { opacity: 0.8; }
 
-        /* 图片预览 */
         .img-preview {
             max-width: 100%;
             max-height: 200px;
@@ -40,7 +36,6 @@
             display: none;
         }
 
-        /* 消息里的图片 */
         .msg-image {
             max-width: 200px;
             border-radius: 8px;
@@ -50,41 +45,62 @@
 </head>
 <body>
 
-<!-- 发送界面 -->
 <div id="tab-send" class="tab-content active">
     <h3>发送消息</h3>
     <div class="card">
         <input type="text" id="consignee" placeholder="收件人">
         <textarea id="msg" rows="3" placeholder="输入消息内容（可选）"></textarea>
         
-        <!-- 图片选择 + 预览 -->
-        <input type="file" id="imagePicker" accept="image/*" style="padding:6px;">
+        <input type="file" id="filePicker" style="padding:6px;">
         <img id="imgPreview" class="img-preview">
 
         <button onclick="sendMessage()">立即发送</button>
     </div>
 </div>
 
-<!-- 接收界面 -->
 <div id="tab-recv" class="tab-content">
-    <h3>消息记录</h3>
+    <h3>全部消息记录</h3>
     <div id="messageList">点击底部“记录”刷新数据...</div>
 </div>
 
-<!-- 底部导航栏 -->
 <div class="bottom-nav">
     <button class="nav-btn active" id="btn-send" onclick="switchTab('tab-send', 'btn-send')">发送</button>
     <button class="nav-btn" id="btn-recv" onclick="switchTab('tab-recv', 'btn-recv')">记录</button>
 </div>
 
 <script>
-    // --- 配置区域 ---
     const SUPABASE_URL = "https://mlbmqulqxdjjkvvxeegu.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_CMZpG9TVXwiUVl_hBN1YfQ_QTjatNP1";
     const STORAGE_BUCKET = "pic_chat";
     const API_URL = SUPABASE_URL + "/rest/v1/all_mess";
+    const MAX_FILE_SIZE =20 * 1024 * 1024; // 20MB
 
-    // 切换标签
+    let currentFile = null;
+    const filePicker = document.getElementById('filePicker');
+    const imgPreview = document.getElementById('imgPreview');
+
+    filePicker.onchange = () => {
+        const file = filePicker.files[0];
+        currentFile = file;
+        imgPreview.style.display = 'none';
+
+        if (!file) return;
+
+        // 大小限制
+        if (file.size > MAX_FILE_SIZE) {
+            alert('文件大小不能超过 20MB');
+            filePicker.value = '';
+            currentFile = null;
+            return;
+        }
+
+        // 图片预览
+        if (file.type.startsWith('image/')) {
+            imgPreview.src = URL.createObjectURL(file);
+            imgPreview.style.display = 'block';
+        }
+    };
+
     function switchTab(tabId, btnId) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
@@ -93,158 +109,114 @@
         if (tabId === 'tab-recv') fetchMessages();
     }
 
-    // 图片预览
-    const imagePicker = document.getElementById('imagePicker');
-    const imgPreview = document.getElementById('imgPreview');
-    imagePicker.onchange = () => {
-        if (imagePicker.files[0]) {
-            imgPreview.src = URL.createObjectURL(imagePicker.files[0]);
-            imgPreview.style.display = "block";
-        } else {
-            imgPreview.style.display = "none";
-        }
-    };
-
-    // ======================
-    // 上传图片
-    // ======================
-    async function uploadImage() {
-        const file = imagePicker.files[0];
-        if (!file) return null;
-
+    async function uploadFile(file) {
         const fileName = `${Date.now()}_${file.name}`;
-        
-        try {
-            const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`, {
-                method: "POST",
-                headers: {
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": "Bearer " + SUPABASE_ANON_KEY,
-                },
-                body: file
-            });
-
-            if (!uploadRes.ok) {
-                const errText = await uploadRes.text();
-                console.error("上传失败：", uploadRes.status, errText);
-                throw new Error("图片上传失败");
-            }
-            
-            return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
-        } catch (e) {
-            console.error("上传异常：", e);
-            throw new Error("图片上传失败，请检查存储权限");
-        }
+        const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`, {
+            method: "POST",
+            headers: {
+                "apikey": SUPABASE_ANON_KEY,
+                "Authorization": "Bearer " + SUPABASE_ANON_KEY
+            },
+            body: file
+        });
+        if (!res.ok) throw new Error('上传失败');
+        return `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`;
     }
 
- // 加载消息（已修改：全部消息混合按时间倒序排列）
-async function fetchMessages() {
-    const listDiv = document.getElementById('messageList');
-    listDiv.innerHTML = "正在加载消息...";
-    
-    try {
-        const response = await fetch(API_URL + "?order=send_time.desc&limit=100", {
-            headers: { 
-                'apikey': SUPABASE_ANON_KEY, 
-                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        if (!data || data.length === 0) { 
-            listDiv.innerHTML = "暂无消息记录"; 
-            return; 
-        }
+    async function fetchMessages() {
+        const listDiv = document.getElementById('messageList');
+        listDiv.innerHTML = "正在加载...";
+        try {
+            const response = await fetch(API_URL + "?order=send_time.desc&limit=100", {
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                    'Content-Type': 'application/json',
+                }
+            });
+            const data = await response.json();
+            if (!data || data.length === 0) { listDiv.innerHTML = "暂无记录"; return; }
 
-        // 统一按时间倒序（发送+接收混合）
-        const sortedMessages = data.sort((a, b) => {
-            return new Date(b.send_time) - new Date(a.send_time);
-        });
+            const sorted = data.sort((a, b) => new Date(b.send_time) - new Date(a.send_time));
 
-        listDiv.innerHTML = sortedMessages.map(item => {
-            const isSend = item.send_lx == 1;
-            const hasPic = item.pic_url && item.pic_url.trim() !== "";
-            
-            // 直接显示原始时间，不再让浏览器自动加时区
-            const timeStr = item.send_time
-                ? item.send_time.replace("T", " ").substring(0, 19)
-                : "";
-            
-            return `
+            listDiv.innerHTML = sorted.map(item => {
+                const isSend = item.send_lx == 1;
+                const fileUrl = item.pic_url;
+                const hasFile = fileUrl?.trim();
+                const isImage = hasFile && /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileUrl);
+                const fileName = hasFile ? decodeURIComponent(fileUrl.split('/').pop()) : '';
+                const timeStr = item.send_time ? item.send_time.replace('T', ' ').substring(0, 19) : '';
+
+                return `
                 <div class="msg-item" style="border-left-color:${isSend ? '#007bff' : '#fd7e14'}">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <div style="display:flex;justify-content:space-between;">
                         <strong>${item.consignee || '无收件人'}</strong>
                         <span class="tag ${isSend ? 'tag-phone' : 'tag-vba'}">
                             ${isSend ? '发送消息' : '接收消息'}
                         </span>
                     </div>
-                    <div style="font-size:14px; color:#333; margin:6px 0;">${item.Text_mess || ''}</div>
-                    ${hasPic ? `<img src="${item.pic_url}" class="msg-image">` : ''}
-                    <div style="font-size:11px; color:#999; margin-top:8px;">
-                        ${timeStr}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (e) {
-        listDiv.innerHTML = `<div style="color:red; padding:10px;">加载失败: ${e.message}</div>`;
-    }
-}
-
-// 发送消息
-async function sendMessage() {
-    const consignee = document.getElementById('consignee').value.trim();
-    const text = document.getElementById('msg').value.trim();
-    const hasFile = imagePicker.files.length > 0;
-
-    if (!consignee) { alert("请填写收件人"); return; }
-    if (!text && !hasFile) { alert("请输入消息内容或选择图片"); return; }
-
-    try {
-        let picUrl = null;
-        if (hasFile) {
-            picUrl = await uploadImage();
+                    <div style="margin:6px 0;">${item.Text_mess || ''}</div>
+                    ${isImage ? `<img src="${fileUrl}" class="msg-image">` : ''}
+                    ${hasFile && !isImage ? `<div style="margin:8px 0;">
+                        <a href="${fileUrl}" target="_blank" style="color:#007bff;">📎 ${fileName}</a>
+                    </div>` : ''}
+                    <div style="font-size:11px;color:#999;margin-top:8px;">${timeStr}</div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            listDiv.innerHTML = `<div style="color:red;">加载失败：${e.message}</div>`;
         }
-
-        // 关键：直接生成北京时间字符串存入，不再用 toISOString()
-        const now = new Date();
-        const beijingTime = new Date(now.getTime() + 8 * 3600 * 1000).toISOString();
-
-        const postData = {
-            consignee: consignee,
-            Text_mess: text,
-            send_lx: 1,
-            Sender: 'Ubuling',
-            send_time: beijingTime,
-            pic_url: picUrl
-        };
-
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 
-                'apikey': SUPABASE_ANON_KEY, 
-                'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(postData)
-        });
-
-        if (res.ok) {
-            alert("发送成功！");
-            document.getElementById('consignee').value = '';
-            document.getElementById('msg').value = '';
-            imagePicker.value = '';
-            imgPreview.style.display = 'none';
-            switchTab('tab-recv', 'btn-recv');
-        } else {
-            const err = await res.text();
-            alert("发送失败：" + err);
-        }
-    } catch (e) {
-        alert("发送错误：" + e.message);
     }
-}
+
+    async function sendMessage() {
+        const consignee = document.getElementById('consignee').value.trim();
+        const text = document.getElementById('msg').value.trim();
+        const file = currentFile;
+
+        if (!consignee) { alert('请填写收件人'); return; }
+        if (!text && !file) { alert('请输入内容或选择文件'); return; }
+
+        try {
+            let fileUrl = null;
+            if (file) fileUrl = await uploadFile(file);
+
+            const now = new Date();
+            const beijingTime = new Date(now.getTime() + 8 * 3600 * 1000).toISOString();
+
+            const data = {
+                consignee,
+                Text_mess: text,
+                send_lx: 1,
+                Sender: 'Ubuling',
+                send_time: beijingTime,
+                pic_url: fileUrl
+            };
+
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                alert('发送成功！');
+                document.getElementById('consignee').value = '';
+                document.getElementById('msg').value = '';
+                filePicker.value = '';
+                imgPreview.style.display = 'none';
+                currentFile = null;
+                switchTab('tab-recv', 'btn-recv');
+            } else {
+                alert('发送失败：' + await res.text());
+            }
+        } catch (e) {
+            alert('错误：' + e.message);
+        }
+    }
 </script>
 </body>
 </html>
