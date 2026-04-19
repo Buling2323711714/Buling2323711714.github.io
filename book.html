@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>小说 TXT 上传</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+        .tip {
+            color: #666;
+            font-size: 14px;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            display: block;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h2>小说 TXT 上传工具</h2>
+    <p class="tip">仅支持 .txt 格式文件</p>
+
+    <div class="form-group">
+        <label>小说标题</label>
+        <input type="text" id="title" placeholder="请输入小说标题" required>
+    </div>
+
+    <div class="form-group">
+        <label>小说作者（可选）</label>
+        <input type="text" id="author" placeholder="请输入作者">
+    </div>
+
+    <div class="form-group">
+        <label>选择 TXT 文件</label>
+        <input type="file" id="txtFile" accept=".txt" required>
+    </div>
+
+    <button id="uploadBtn">上传小说</button>
+    <div id="result"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // 你的项目地址
+        const SUPABASE_URL = "https://mlbmqulqxdjjkvvxeegu.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_CMZpG9TVXwiUVl_hBN1YfQ_QTjatNP1";
+
+        // 固定桶名 ✅ 你必须在 Supabase 创建这个桶
+        const BUCKET_NAME = "novels";
+
+        let supabaseClient;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            document.getElementById('uploadBtn').addEventListener('click', uploadNovel);
+        });
+
+        async function uploadNovel() {
+            console.log("点击上传");
+
+            const title = document.getElementById('title').value.trim();
+            const author = document.getElementById('author').value.trim();
+            const fileInput = document.getElementById('txtFile');
+            const file = fileInput.files[0];
+            const resultBox = document.getElementById('result');
+            const btn = document.getElementById('uploadBtn');
+
+            if (!title) {
+                resultBox.className = 'error';
+                resultBox.textContent = '请填写标题';
+                resultBox.style.display = 'block';
+                return;
+            }
+            if (!file) {
+                resultBox.className = 'error';
+                resultBox.textContent = '请选择文件';
+                resultBox.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "上传中...";
+            resultBox.style.display = "none";
+
+            try {
+                // 文件名 100% 安全
+                const fileName = `novel_${Date.now()}.txt`;
+
+                // ==============================================
+                // ✅ 这里明确指定了 桶：novels
+                // ==============================================
+                const { data: uploadData, error: uploadErr } = await supabaseClient
+                    .storage
+                    .from(BUCKET_NAME) // 👈 就是这里！指定桶！
+                    .upload(fileName, file);
+
+                if (uploadErr) throw uploadErr;
+
+                // 获取文件链接
+                const { data } = supabaseClient
+                    .storage
+                    .from(BUCKET_NAME)
+                    .getPublicUrl(fileName);
+
+                const fileUrl = data.publicUrl;
+
+                // 写入数据库
+                const { error: dbErr } = await supabaseClient
+                    .from('novels')
+                    .insert([{
+                        title: title,
+                        author: author || "佚名",
+                        file_path: fileName,
+                        file_url: fileUrl
+                    }]);
+
+                if (dbErr) throw dbErr;
+
+                // 成功
+                resultBox.className = "success";
+                resultBox.textContent = `✅ 上传成功！\n标题：${title}\n链接：${fileUrl}`;
+                resultBox.style.display = "block";
+
+                // 清空
+                document.getElementById('title').value = "";
+                document.getElementById('author').value = "";
+                fileInput.value = "";
+
+            } catch (e) {
+                console.error(e);
+                resultBox.className = "error";
+                resultBox.textContent = "❌ 上传失败：" + e.message;
+                resultBox.style.display = "block";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "上传小说";
+            }
+        }
+    </script>
+</body>
+</html>
