@@ -2,147 +2,271 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>小说 TXT 上传</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小说 TXT 上传工具</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
+
         body {
-            max-width: 600px;
-            margin: 50px auto;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f0f4ff, #e8f0ff);
             padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+
+        .container {
+            width: 100%;
+            max-width: 580px;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .container:hover {
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        .title {
+            font-size: 26px;
+            color: #1f2937;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .tip {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
         .form-group {
-            margin: 15px 0;
+            margin-bottom: 22px;
         }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 15px;
+        }
+
         input, button {
             width: 100%;
-            padding: 12px;
-            margin: 5px 0;
-            font-size: 16px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.2s ease;
+            outline: none;
         }
+
+        input {
+            border: 1px solid #d1d5db;
+            background: #fafafa;
+        }
+
+        input:focus {
+            border-color: #4f46e5;
+            background: #fff;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        input[type="file"] {
+            padding: 12px;
+            border: 1px dashed #d1d5db;
+            background: #f9fafb;
+            cursor: pointer;
+        }
+
+        input[type="file"]:hover {
+            border-color: #4f46e5;
+            background-color: #f5f7ff;
+        }
+
         button {
             background: #4f46e5;
             color: white;
             border: none;
-            border-radius: 5px;
+            font-weight: 500;
+            margin-top: 10px;
             cursor: pointer;
         }
+
+        button:hover:not(:disabled) {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
         button:disabled {
-            background: #999;
+            background: #9ca3af;
             cursor: not-allowed;
+            transform: none;
         }
-        .tip {
-            color: #666;
-            font-size: 14px;
+
+        /* 进度条区域 */
+        .progress-container {
+            display: none;
+            margin: 16px 0;
         }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #4f46e5;
+            border-radius: 999px;
+            transition: width 0.2s ease;
+        }
+        .progress-text {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #4f46e5;
+            text-align: center;
+        }
+
         #result {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 5px;
+            margin-top: 24px;
+            padding: 16px 18px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line;
             display: none;
         }
+
         .success {
-            background: #d1fae5;
+            background: #ecfdf5;
             color: #065f46;
+            border: 1px solid #a7f3d0;
             display: block;
         }
+
         .error {
-            background: #fee2e2;
+            background: #fef2f2;
             color: #991b1b;
+            border: 1px solid #fecaca;
             display: block;
+        }
+
+        /* 小屏适配 */
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px 20px;
+            }
+            .title {
+                font-size: 22px;
+            }
         }
     </style>
 </head>
+
 <body>
-    <h2>小说 TXT 上传工具</h2>
-    <p class="tip">仅支持 .txt 格式文件</p>
+    <div class="container">
+        <h2 class="title">小说 TXT 上传工具</h2>
+        <p class="tip">仅支持 .txt 格式文件，安全上传、永久存储</p>
 
-    <div class="form-group">
-        <label>小说标题</label>
-        <input type="text" id="title" placeholder="请输入小说标题" required>
+        <div class="form-group">
+            <label>小说标题 *</label>
+            <input type="text" id="title" placeholder="请输入小说标题" required>
+        </div>
+
+        <div class="form-group">
+            <label>小说作者</label>
+            <input type="text" id="author" placeholder="选填，默认：佚名">
+        </div>
+
+        <div class="form-group">
+            <label>选择 TXT 文件 *</label>
+            <input type="file" id="txtFile" accept=".txt" required>
+        </div>
+
+        <!-- 进度条区域 -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+
+        <button id="uploadBtn">上传小说</button>
+        <div id="result"></div>
     </div>
-
-    <div class="form-group">
-        <label>小说作者（可选）</label>
-        <input type="text" id="author" placeholder="请输入作者">
-    </div>
-
-    <div class="form-group">
-        <label>选择 TXT 文件</label>
-        <input type="file" id="txtFile" accept=".txt" required>
-    </div>
-
-    <button id="uploadBtn">上传小说</button>
-    <div id="result"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // 你的项目地址
+        // ===================== 配置 =====================
         const SUPABASE_URL = "https://mlbmqulqxdjjkvvxeegu.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_CMZpG9TVXwiUVl_hBN1YfQ_QTjatNP1";
-
-        // 固定桶名 ✅ 你必须在 Supabase 创建这个桶
         const BUCKET_NAME = "novels";
-
         let supabaseClient;
 
-        document.addEventListener('DOMContentLoaded', function() {
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            document.getElementById('uploadBtn').addEventListener('click', uploadNovel);
+            const btn = document.getElementById('uploadBtn');
+            btn.addEventListener('click', uploadNovel);
         });
 
+        // 上传主函数（带真实进度）
         async function uploadNovel() {
-            console.log("点击上传");
-
             const title = document.getElementById('title').value.trim();
             const author = document.getElementById('author').value.trim();
             const fileInput = document.getElementById('txtFile');
             const file = fileInput.files[0];
             const resultBox = document.getElementById('result');
             const btn = document.getElementById('uploadBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
 
+            // 校验
             if (!title) {
-                resultBox.className = 'error';
-                resultBox.textContent = '请填写标题';
-                resultBox.style.display = 'block';
+                showResult("请填写小说标题", "error");
                 return;
             }
             if (!file) {
-                resultBox.className = 'error';
-                resultBox.textContent = '请选择文件';
-                resultBox.style.display = 'block';
+                showResult("请选择要上传的 TXT 文件", "error");
                 return;
             }
 
+            // 加载状态
             btn.disabled = true;
-            btn.textContent = "上传中...";
+            btn.textContent = "正在上传中...";
             resultBox.style.display = "none";
+            progressContainer.style.display = "block";
+            setProgress(0);
 
             try {
-                // 文件名 100% 安全
-                const fileName = `novel_${Date.now()}.txt`;
+                // 生成唯一文件名
+                const fileName = `novel_${Date.now()}_${Math.random().toString(36).slice(2, 10)}.txt`;
 
                 // ==============================================
-                // ✅ 这里明确指定了 桶：novels
+                // ✅ 关键：用 XHR 实现带进度的上传（Supabase 标准接口不支持进度）
                 // ==============================================
-                const { data: uploadData, error: uploadErr } = await supabaseClient
-                    .storage
-                    .from(BUCKET_NAME) // 👈 就是这里！指定桶！
-                    .upload(fileName, file);
-
-                if (uploadErr) throw uploadErr;
-
-                // 获取文件链接
-                const { data } = supabaseClient
-                    .storage
-                    .from(BUCKET_NAME)
-                    .getPublicUrl(fileName);
-
-                const fileUrl = data.publicUrl;
+                const fileUrl = await uploadWithProgress(
+                    file,
+                    fileName,
+                    (percent) => setProgress(percent)
+                );
 
                 // 写入数据库
                 const { error: dbErr } = await supabaseClient
@@ -154,27 +278,84 @@
                         file_url: fileUrl
                     }]);
 
-                if (dbErr) throw dbErr;
+                if (dbErr) throw new Error("数据保存失败：" + dbErr.message);
 
                 // 成功
-                resultBox.className = "success";
-                resultBox.textContent = `✅ 上传成功！\n标题：${title}\n链接：${fileUrl}`;
-                resultBox.style.display = "block";
+                showResult(`✅ 上传成功！\n标题：${title}\n链接：${fileUrl}`, "success");
 
                 // 清空
                 document.getElementById('title').value = "";
                 document.getElementById('author').value = "";
                 fileInput.value = "";
+                setProgress(100);
 
-            } catch (e) {
-                console.error(e);
-                resultBox.className = "error";
-                resultBox.textContent = "❌ 上传失败：" + e.message;
-                resultBox.style.display = "block";
+            } catch (err) {
+                console.error("上传异常：", err);
+                showResult("❌ 上传失败：" + err.message, "error");
             } finally {
                 btn.disabled = false;
                 btn.textContent = "上传小说";
             }
+        }
+
+        // ==============================================
+        // ✅ 核心：XHR 上传 + 真实进度回调
+        // ==============================================
+        function uploadWithProgress(file, fileName, onProgress) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${fileName}`;
+
+                xhr.open("POST", url, true);
+                xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+                xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
+                xhr.setRequestHeader("Content-Type", file.type || "text/plain");
+
+                // 监听上传进度
+                xhr.upload.onprogress = function (e) {
+                    if (e.lengthComputable) {
+                        const percent = (e.loaded / e.total) * 100;
+                        onProgress(Math.round(percent));
+                    }
+                };
+
+                xhr.onload = function () {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        // 拼接公开 URL
+                        const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/${fileName}`;
+                        resolve(publicUrl);
+                    } else {
+                        try {
+                            const err = JSON.parse(xhr.responseText);
+                            reject(new Error(err.message || "上传失败"));
+                        } catch {
+                            reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                        }
+                    }
+                };
+
+                xhr.onerror = function () {
+                    reject(new Error("网络异常，请检查连接"));
+                };
+
+                xhr.send(file);
+            });
+        }
+
+        // 更新进度条 UI
+        function setProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            progressFill.style.width = `${percent}%`;
+            progressText.textContent = `${percent}%`;
+        }
+
+        // 统一提示框
+        function showResult(text, type) {
+            const box = document.getElementById('result');
+            box.className = type;
+            box.textContent = text;
+            box.style.display = "block";
         }
     </script>
 </body>
